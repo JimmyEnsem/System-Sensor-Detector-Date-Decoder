@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detector Date Decoder</title>
+  <title>System Sensor Date Decoder</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -27,10 +27,16 @@
       border-radius: 8px;
       background-color: #f4f4f4;
     }
+    .logo {
+      display: block;
+      margin: 0 auto 20px auto;
+      max-width: 150px;
+    }
   </style>
 </head>
 <body>
-  <h2>Detector Date Decoder</h2>
+  <img src="logo.png" alt="Profire Logo" class="logo">
+  <h2>System Sensor Date Decoder</h2>
   <input id="codeInput" type="text" maxlength="4" placeholder="Enter 4-digit code (e.g. 4032)" />
   <button onclick="decodeCode()">Decode</button>
 
