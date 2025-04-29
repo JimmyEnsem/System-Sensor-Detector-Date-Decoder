@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Sensor Date Decoder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 40px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 { text-align: center; }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      background-color: #f4f4f4;
+    }
+    .logo {
+      display: block;
+      margin: 0 auto 20px auto;
+      max-width: 150px;
+    }
+  </style>
+</head>
+<body>
+  <img src="logo.png" alt="Profire Logo" class="logo">
+  <h2>System Sensor Date Decoder</h2>
+  <input id="codeInput" type="text" maxlength="4" placeholder="Enter 4-digit code (e.g. 4032)" />
+  <button onclick="decodeCode()">Decode</button>
+
+  <div id="result" class="result" style="display: none;"></div>
+
+  <script>
+    function decodeCode() {
+      const input = document.getElementById('codeInput').value.trim();
+      const result = document.getElementById('result');
+      result.style.display = 'block';
+
+      if (!/^\d{4}$/.test(input)) {
+        result.innerHTML = '❌ Please enter a valid 4-digit numeric code.';
+        return;
+      }
+
+      const [a, b, c, d] = input.split('').map(Number);
+
+      let output = '', year, week, month;
+      
+      if (input[0] >= '0' && input[0] <= '9') {
+        // Try YYWW format first (2003+)
+        year = 2000 + a * 10 + b;
+        week = c * 10 + d;
+
+        if (year >= 2003 && year <= 2009) {
+          output = `<strong>Date:</strong> Week ${week}, Year ${year}`;
+        } else {
+          // Otherwise use YMMW format
+          year = 2010 + a;
+          month = b;
+          week = c * 10 + d;
+
+          const monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+          output = `<strong>Date:</strong> ${week} week of ${monthNames[month]} ${year}`;
+        }
+
+        const currentYear = new Date().getFullYear();
+        const status = (year < currentYear - 10) ? '⚠️ Detector likely out of date' : '✅ Detector likely still valid';
+
+        result.innerHTML = `${output}<br><strong>Status:</strong> ${status}`;
+      } else {
+        result.innerHTML = '❌ Unrecognized format.';
+      }
+    }
+  </script>
+</body>
+</html>
