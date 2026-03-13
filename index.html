@@ -287,6 +287,7 @@
 <body>
 <div class="container">
   <header>
+    <img src="https://jimmyensem.github.io/System-Sensor-Detector-Date-Decoder/logo.png" alt="Profire" style="height:48px;margin-bottom:20px;display:block;">
     <div class="badge">Fire Compliance Tool</div>
     <h1>System Sensor<br><span>Date Decoder</span></h1>
     <p class="subtitle">Decodes manufacturing date codes from System Sensor, Notifier, and Pertronic detectors. Enter the first 4 digits of the serial number.</p>
@@ -504,52 +505,68 @@
   }
 
   function buildYMMW(yDigit, mm, w) {
-    // Determine year from single digit + context
-    // Pre-Aug 2003: digit 0–3 → 2000–2003
-    // Post-Jun 2009: digit 0–9 → 2010–2019 (or 2020–2029 for digit 0–9 again)
-    // The PDF says for code "4032" (post-2009 era) = 2nd week March 2014
-    // So digit 4 → 2014; digit 3 → 2013 etc.
-    // For disambiguation, we choose the most recent plausible year.
-    // Single digit Y maps to: 2010 + (Y-1) for Y=1..9, and 2020 for Y=0 (post-2019)
-    // But also could be 2000+Y for pre-2003. We return both and let caller decide.
-    // For simplicity here, we produce the post-2009 interpretation:
+    // PDF-defined YMMW eras:
+    //   Era A (before Aug 2003): digit → 200Y  e.g. 3→2003
+    //   Era C (June 2009+):      digit → 201Y  e.g. 4→2014, 3→2013
+    //   Era D (2020+):           digit → 202Y  e.g. 0→2020
+    //
+    // The year DIGIT alone is ambiguous — digit 3 could be 2003 OR 2013.
+    // We collect all plausible years (not in YYWW-only era 2004-2009, not future)
+    // and return them ALL so the UI can show the user both options.
 
-    let year;
-    // Post-2009: Y=0→2020, Y=1→2011... Y=9→2019
-    // But also could be 2000+Y (pre-2003)
-    // We always try the most recent decade first
-    if (yDigit === 0) {
-      year = 2020;
-    } else {
-      // Could be 200Y or 201Y or 202Y
-      // Pick the one that's in the past but most recent
-      const candidates = [2000 + yDigit, 2010 + yDigit, 2020 + yDigit];
-      const now = new Date().getFullYear();
-      year = candidates.filter(y => y <= now + 1).pop() || candidates[0];
+    const now = new Date().getFullYear();
+    const allYears = [];
+    for (let decade = 2000; decade <= 2030; decade += 10) {
+      const y = decade + yDigit;
+      // Exclude years solidly in the YYWW-only era (2004–2009) — those use a different format
+      if (y >= 2004 && y <= 2009) continue;
+      if (y < 2000) continue;
+      if (y > now) continue;
+      allYears.push(y);
     }
 
+    if (allYears.length === 0) allYears.push(2000 + yDigit);
+
     const monthName = MONTH_FULL[mm - 1];
-    // Approximate: first day of month + (w-1)*7 days
-    const approx = new Date(year, mm - 1, 1 + (w - 1) * 7);
+    const primaryYear = allYears[allYears.length - 1]; // most recent as primary
+    const approx = new Date(primaryYear, mm - 1, 1 + (w - 1) * 7);
 
     return {
       format: 'YMMW',
-      year,
+      year: primaryYear,
+      allYears, // all plausible years — shown to user if ambiguous
       month: mm,
       week: w,
-      description: `Week ${w} of ${monthName} ${year}`,
+      description: `Week ${w} of ${monthName} ${primaryYear}`,
       approxDate: approx,
       formatLabel: 'YMMW',
+      monthName,
     };
   }
 
   function renderResult(code, r) {
     document.getElementById('resultDate').textContent = r.description;
 
-    // Approximate calendar date
+    // If YMMW and multiple years plausible, show all options
+    const approxEl = document.getElementById('resultApprox');
     const opts = { day: 'numeric', month: 'long', year: 'numeric' };
-    document.getElementById('resultApprox').textContent =
-      'Approx. ' + r.approxDate.toLocaleDateString('en-AU', opts);
+    approxEl.textContent = 'Approx. ' + r.approxDate.toLocaleDateString('en-AU', opts);
+
+    // Ambiguity notice
+    let ambigEl = document.getElementById('ambigNotice');
+    if (!ambigEl) {
+      ambigEl = document.createElement('div');
+      ambigEl.id = 'ambigNotice';
+      ambigEl.style.cssText = 'font-size:12px;font-family:var(--mono);color:var(--accent2);margin-top:6px;line-height:1.6;';
+      approxEl.after(ambigEl);
+    }
+    if (r.allYears && r.allYears.length > 1) {
+      const others = r.allYears.filter(y => y !== r.year);
+      ambigEl.textContent = `⚠ Year digit is ambiguous — could also be: ${others.map(y => `Week ${r.week} of ${r.monthName} ${y}`).join(' or ')}. Check the FIP panel manufacture date to confirm.`;
+      ambigEl.style.display = 'block';
+    } else {
+      ambigEl.style.display = 'none';
+    }
 
     // Age
     const now = new Date();
