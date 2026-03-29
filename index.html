@@ -528,7 +528,7 @@
     if (allYears.length === 0) allYears.push(2000 + yDigit);
 
     const monthName = MONTH_FULL[mm - 1];
-    const primaryYear = allYears[allYears.length - 1]; // most recent as primary
+    const primaryYear = allYears[0]; // OLDEST plausible year — conservative for compliance
     const approx = new Date(primaryYear, mm - 1, 1 + (w - 1) * 7);
 
     return {
@@ -562,7 +562,7 @@
     }
     if (r.allYears && r.allYears.length > 1) {
       const others = r.allYears.filter(y => y !== r.year);
-      ambigEl.textContent = `⚠ Year digit is ambiguous — could also be: ${others.map(y => `Week ${r.week} of ${r.monthName} ${y}`).join(' or ')}. Check the FIP panel manufacture date to confirm.`;
+      ambigEl.textContent = `⚠ Showing oldest possible date (conservative). If the FIP panel confirms a later install, it may instead be: ${others.map(y => `Week ${r.week} of ${r.monthName} ${y}`).join(' or ')}.`;
       ambigEl.style.display = 'block';
     } else {
       ambigEl.style.display = 'none';
