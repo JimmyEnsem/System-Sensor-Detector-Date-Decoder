@@ -32,7 +32,6 @@
     padding: 40px 20px;
   }
 
-  /* Grid background */
   body::before {
     content: '';
     position: fixed;
@@ -52,9 +51,7 @@
     max-width: 640px;
   }
 
-  header {
-    margin-bottom: 40px;
-  }
+  header { margin-bottom: 40px; }
 
   .badge {
     display: inline-block;
@@ -167,7 +164,16 @@
   .result-approx {
     font-size: 13px;
     color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .ambig-notice {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--accent2);
     margin-bottom: 18px;
+    line-height: 1.6;
+    display: none;
   }
 
   .status-row {
@@ -198,7 +204,6 @@
     gap: 12px;
   }
 
-  .meta-item { }
   .meta-key {
     font-family: var(--mono);
     font-size: 10px;
@@ -213,7 +218,6 @@
     color: var(--text);
   }
 
-  /* Error state */
   .error-msg {
     display: none;
     color: var(--accent);
@@ -224,7 +228,6 @@
   }
   .error-msg.visible { display: block; }
 
-  /* Reference table */
   .ref-toggle {
     display: flex;
     align-items: center;
@@ -272,8 +275,6 @@
 
   td:first-child { color: var(--accent); }
 
-  .highlight-row td { background: rgba(232,67,58,0.06); }
-
   footer {
     margin-top: 40px;
     font-size: 11px;
@@ -296,7 +297,7 @@
   <div class="card">
     <div class="input-row">
       <input type="text" id="codeInput" maxlength="4" placeholder="e.g. 3094" inputmode="numeric" autocomplete="off" />
-      <button onclick="decode()">Decode</button>
+      <button id="decodeBtn">Decode</button>
     </div>
     <div class="error-msg" id="errorMsg"></div>
   </div>
@@ -305,6 +306,7 @@
     <div class="result-label">Manufacture Date</div>
     <div class="result-date" id="resultDate"></div>
     <div class="result-approx" id="resultApprox"></div>
+    <div class="ambig-notice" id="ambigNotice"></div>
     <div class="status-row" id="statusRow">
       <div class="status-dot"></div>
       <span id="statusText"></span>
@@ -331,9 +333,9 @@
   </div>
 
   <div class="card" style="margin-top:24px;">
-    <div class="ref-toggle" onclick="toggleRef()">
-      <span class="ref-toggle-arrow" id="refArrow">▶</span>
-      Decoding Reference — Format Rules
+    <div class="ref-toggle" id="refToggle">
+      <span class="ref-toggle-arrow" id="refArrow">&#9658;</span>
+      Decoding Reference &mdash; Format Rules
     </div>
     <div class="ref-body" id="refBody">
       <table>
@@ -353,13 +355,13 @@
             <td>2nd wk Mar 2003</td>
           </tr>
           <tr>
-            <td>Aug 2003 – Jun 2009</td>
+            <td>Aug 2003 &ndash; Jun 2009</td>
             <td>YYWW</td>
             <td>0432</td>
             <td>32nd wk of 2004</td>
           </tr>
           <tr>
-            <td>Jun 2009 – present</td>
+            <td>Jun 2009 &ndash; present</td>
             <td>YMMW</td>
             <td>4032</td>
             <td>2nd wk Mar 2014</td>
@@ -367,114 +369,91 @@
         </tbody>
       </table>
       <p style="font-size:11px;color:var(--muted);margin-top:12px;font-family:var(--mono);line-height:1.6;">
-        Y = last digit of year &nbsp;|&nbsp; YY = last two digits of year &nbsp;|&nbsp; MM = month (01–12) &nbsp;|&nbsp; W = week within month
+        Y = last digit of year &nbsp;|&nbsp; YY = last two digits of year &nbsp;|&nbsp; MM = month (01&ndash;12) &nbsp;|&nbsp; W = week within month
       </p>
     </div>
   </div>
 
   <footer>
-    System Sensor / Notifier / Pertronic — AS 1851 compliance reference<br>
+    System Sensor / Notifier / Pertronic &mdash; AS 1851 compliance reference<br>
     Smoke detectors typically require replacement after 10 years from manufacture
   </footer>
 </div>
 
 <script>
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+(function () {
+  'use strict';
 
-  document.getElementById('codeInput').addEventListener('keydown', e => {
+  var MONTH_FULL = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December'
+  ];
+
+  // ── Event wiring ──────────────────────────────────────────────────────────
+  document.getElementById('decodeBtn').addEventListener('click', decode);
+  document.getElementById('codeInput').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') decode();
   });
+  document.getElementById('refToggle').addEventListener('click', toggleRef);
 
+  // ── Main decode entry ─────────────────────────────────────────────────────
   function decode() {
-    const raw = document.getElementById('codeInput').value.trim();
-    const errorEl = document.getElementById('errorMsg');
-    const resultEl = document.getElementById('result');
+    var raw     = document.getElementById('codeInput').value.trim();
+    var errorEl = document.getElementById('errorMsg');
+    var resultEl= document.getElementById('result');
 
     if (!/^\d{4}$/.test(raw)) {
-      errorEl.textContent = 'Enter exactly 4 digits.';
-      errorEl.classList.add('visible');
+      showError('Enter exactly 4 digits.');
+      resultEl.classList.remove('visible');
+      return;
+    }
+
+    var r = decodeCode(raw);
+    if (!r) {
+      showError('Could not decode this code. Check the format rules below.');
       resultEl.classList.remove('visible');
       return;
     }
 
     errorEl.classList.remove('visible');
-
-    const result = decodeCode(raw);
-    if (!result) {
-      errorEl.textContent = 'Could not decode this code. Check the format rules below.';
-      errorEl.classList.add('visible');
-      resultEl.classList.remove('visible');
-      return;
-    }
-
-    renderResult(raw, result);
+    renderResult(raw, r);
   }
 
+  function showError(msg) {
+    var el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  // ── Decode logic ──────────────────────────────────────────────────────────
   function decodeCode(code) {
-    const d1 = parseInt(code[0]);
-    const d2 = parseInt(code[1]);
-    const d3 = parseInt(code[2]);
-    const d4 = parseInt(code[3]);
+    var d1 = parseInt(code[0], 10);
+    var d2 = parseInt(code[1], 10);
+    var d3 = parseInt(code[2], 10);
+    var d4 = parseInt(code[3], 10);
 
-    // We need to determine which format applies.
-    // Three possible formats from the PDF:
-    //   A) YMMW — pre-Aug 2003 (year digit 0-9 → 2000-2009, but only pre-2003)
-    //   B) YYWW — Aug 2003 to Jun 2009  (first two digits = last 2 digits of year, 03–09)
-    //   C) YMMW — Jun 2009 onward (year digit maps to 2009+)
-    //
-    // Key insight from PDF:
-    //   - YYWW format only applies 2003–2009, so YY must be 03–09 (i.e. d1d2 in range 03–09)
-    //   - Outside that range, YMMW applies (two sub-periods but same format)
-    //   - In YMMW: MM must be 01–12, W must be 1–5
-    //   - In YYWW: WW must be 01–52
+    // YYWW: two-digit year (03+), week 01–53.
+    // Originally documented for Aug 2003–Jun 2009, but reintroduced for 2020s production.
+    // The upper bound is removed; disambiguation below handles era conflicts.
+    var yyww_year = d1 * 10 + d2;
+    var yyww_week = d3 * 10 + d4;
+    var isYYWW    = (yyww_year >= 3) && (yyww_week >= 1 && yyww_week <= 53);
 
-    // Try YYWW first (Aug 2003 – Jun 2009)
-    const yyww_year = d1 * 10 + d2; // e.g. 03, 04 … 09
-    const yyww_week = d3 * 10 + d4;
+    // YMMW: all other eras. MM = d2d3, W = d4.
+    var ymmw_month     = d2 * 10 + d3;
+    var ymmw_week      = d4;
+    var ymmw_yearDigit = d1;
+    var isYMMW         = (ymmw_month >= 1 && ymmw_month <= 12) && (ymmw_week >= 1 && ymmw_week <= 5);
 
-    const isYYWW = (yyww_year >= 3 && yyww_year <= 9) && (yyww_week >= 1 && yyww_week <= 53);
-    // But also check: does YMMW make sense?
-    const ymmw_month = d2 * 10 + d3; // MM
-    const ymmw_week  = d4;            // W
-    const ymmw_yearDigit = d1;        // Y (single digit)
-
-    const isYMMW = (ymmw_month >= 1 && ymmw_month <= 12) && (ymmw_week >= 1 && ymmw_week <= 5);
-
-    // Disambiguation logic (following PDF examples):
-    // - If YYWW is valid and the two-digit year maps to 2003–2009, prefer YYWW
-    //   UNLESS YMMW also produces a sensible, more-recent date that avoids
-    //   obviously wrong results (like "week 94").
-    // - Post-2009 codes should use YMMW.
-
-    if (isYYWW && !isYMMW) {
-      return buildYYWW(yyww_year, yyww_week);
-    }
-
-    if (isYMMW && !isYYWW) {
-      return buildYMMW(ymmw_yearDigit, ymmw_month, ymmw_week);
-    }
+    if (isYYWW && !isYMMW) { return buildYYWW(yyww_year, yyww_week); }
+    if (isYMMW && !isYYWW) { return buildYMMW(ymmw_yearDigit, ymmw_month, ymmw_week); }
 
     if (isYMMW && isYYWW) {
-      // Both plausible — must disambiguate.
-      // Rule from PDF: YYWW only applies Aug 2003 – Jun 2009.
-      // If the YYWW year is clearly in range 03–09 AND YMMW would produce
-      // an impossible date (week > 5 or month > 12), use YYWW.
-      // If both are valid, prefer the most recent plausible date.
-      // Per PDF example "0826": 26th week of 2008 vs 6th week of 82nd month → YYWW wins.
-      // Per PDF example "5043": 43rd week of 1950 vs 3rd week April 2015 → YMMW wins.
-      // So: if YYWW gives a past-century year, YMMW wins.
-
-      const yw = buildYYWW(yyww_year, yyww_week);
-      const ym = buildYMMW(ymmw_yearDigit, ymmw_month, ymmw_week);
-
-      // If YYWW would be in 1900s (impossible), use YMMW
-      if (yw && yw.year < 2000) return ym;
-
-      // If YYWW year is in 2003-2009 range (the defined window), use YYWW
-      if (yw && yw.year >= 2003 && yw.year <= 2009) return yw;
-
-      // Otherwise prefer YMMW (post-2009 era)
+      // Ambiguous — disambiguate.
+      var yw = buildYYWW(yyww_year, yyww_week);
+      var ym = buildYMMW(ymmw_yearDigit, ymmw_month, ymmw_week);
+      // YYWW only valid 2003–2009; prefer it if year falls in that window.
+      if (yw && yw.year >= 2003 && yw.year <= 2009) { return yw; }
       return ym || yw;
     }
 
@@ -482,142 +461,132 @@
   }
 
   function buildYYWW(yy, ww) {
-    // YY = two-digit year, could be 03–09 → 2003–2009
-    // or 50 → 1950 (impossible, flag it)
-    let year;
-    if (yy >= 0 && yy <= 30) {
-      year = 2000 + yy;
-    } else {
-      year = 1900 + yy; // obviously wrong, caller will handle
-    }
-    // Approximate date: start of week ww in that year
-    const jan1 = new Date(year, 0, 1);
-    const approx = new Date(jan1.getTime() + (ww - 1) * 7 * 86400000);
+    var year  = (yy >= 0 && yy <= 30) ? 2000 + yy : 1900 + yy;
+    var jan1  = new Date(year, 0, 1);
+    var approx= new Date(jan1.getTime() + (ww - 1) * 7 * 86400000);
     return {
-      format: 'YYWW',
-      year,
-      description: `Week ${ww} of ${year}`,
-      month: null,
-      week: ww,
-      approxDate: approx,
-      formatLabel: 'YYWW (Aug 2003–Jun 2009)',
+      format     : 'YYWW',
+      year       : year,
+      description: 'Week ' + ww + ' of ' + year,
+      month      : null,
+      week       : ww,
+      approxDate : approx,
+      formatLabel: 'YYWW (Aug 2003\u2013Jun 2009)',
+      allYears   : [year],
+      monthName  : null
     };
   }
 
   function buildYMMW(yDigit, mm, w) {
-    // PDF-defined YMMW eras:
-    //   Era A (before Aug 2003): digit → 200Y  e.g. 3→2003
-    //   Era C (June 2009+):      digit → 201Y  e.g. 4→2014, 3→2013
-    //   Era D (2020+):           digit → 202Y  e.g. 0→2020
-    //
-    // The year DIGIT alone is ambiguous — digit 3 could be 2003 OR 2013.
-    // We collect all plausible years (not in YYWW-only era 2004-2009, not future)
-    // and return them ALL so the UI can show the user both options.
+    var currentYear = new Date().getFullYear();
+    var allYears    = [];
 
-    const now = new Date().getFullYear();
-    const allYears = [];
-    for (let decade = 2000; decade <= 2030; decade += 10) {
-      const y = decade + yDigit;
-      // Exclude years solidly in the YYWW-only era (2004–2009) — those use a different format
-      if (y >= 2004 && y <= 2009) continue;
-      if (y < 2000) continue;
-      if (y > now) continue;
+    // Collect every plausible decade that isn't in the YYWW-only era (2004–2009)
+    // and isn't in the future.
+    for (var decade = 2000; decade <= 2030; decade += 10) {
+      var y = decade + yDigit;
+      if (y >= 2004 && y <= 2009) { continue; } // YYWW era — wrong format
+      if (y < 2000)               { continue; }
+      if (y > currentYear)        { continue; }
       allYears.push(y);
     }
+    if (allYears.length === 0) { allYears.push(2000 + yDigit); }
 
-    if (allYears.length === 0) allYears.push(2000 + yDigit);
-
-    const monthName = MONTH_FULL[mm - 1];
-    const primaryYear = allYears[0]; // OLDEST plausible year — conservative for compliance
-    const approx = new Date(primaryYear, mm - 1, 1 + (w - 1) * 7);
+    // Use the MOST RECENT plausible year as primary.
+    // Rationale: detectors encountered in the field are overwhelmingly from
+    // the current decade. Showing an ancient date produces false compliance
+    // failures. The ambiguity notice alerts the user when multiple years exist.
+    var primaryYear = allYears[allYears.length - 1];
+    var monthName   = MONTH_FULL[mm - 1];
+    var approx      = new Date(primaryYear, mm - 1, 1 + (w - 1) * 7);
 
     return {
-      format: 'YMMW',
-      year: primaryYear,
-      allYears, // all plausible years — shown to user if ambiguous
-      month: mm,
-      week: w,
-      description: `Week ${w} of ${monthName} ${primaryYear}`,
-      approxDate: approx,
+      format     : 'YMMW',
+      year       : primaryYear,
+      allYears   : allYears,
+      month      : mm,
+      week       : w,
+      description: 'Week ' + w + ' of ' + monthName + ' ' + primaryYear,
+      approxDate : approx,
       formatLabel: 'YMMW',
-      monthName,
+      monthName  : monthName
     };
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   function renderResult(code, r) {
     document.getElementById('resultDate').textContent = r.description;
 
-    // If YMMW and multiple years plausible, show all options
-    const approxEl = document.getElementById('resultApprox');
-    const opts = { day: 'numeric', month: 'long', year: 'numeric' };
-    approxEl.textContent = 'Approx. ' + r.approxDate.toLocaleDateString('en-AU', opts);
+    var opts     = { day: 'numeric', month: 'long', year: 'numeric' };
+    document.getElementById('resultApprox').textContent =
+      'Approx. ' + r.approxDate.toLocaleDateString('en-AU', opts);
 
-    // Ambiguity notice
-    let ambigEl = document.getElementById('ambigNotice');
-    if (!ambigEl) {
-      ambigEl = document.createElement('div');
-      ambigEl.id = 'ambigNotice';
-      ambigEl.style.cssText = 'font-size:12px;font-family:var(--mono);color:var(--accent2);margin-top:6px;line-height:1.6;';
-      approxEl.after(ambigEl);
-    }
+    // Ambiguity notice — shown when multiple decades are plausible.
+    var ambigEl = document.getElementById('ambigNotice');
     if (r.allYears && r.allYears.length > 1) {
-      const others = r.allYears.filter(y => y !== r.year);
-      ambigEl.textContent = `⚠ Showing oldest possible date (conservative). If the FIP panel confirms a later install, it may instead be: ${others.map(y => `Week ${r.week} of ${r.monthName} ${y}`).join(' or ')}.`;
+      var others = r.allYears.filter(function (y) { return y !== r.year; });
+      ambigEl.textContent =
+        '\u26A0 Multiple decades possible. Showing most recent (' + r.year + '). ' +
+        'If the panel log confirms an earlier install, it may instead be: ' +
+        others.map(function (y) {
+          return 'Week ' + r.week + ' of ' + r.monthName + ' ' + y;
+        }).join(' or ') + '.';
       ambigEl.style.display = 'block';
     } else {
       ambigEl.style.display = 'none';
     }
 
-    // Age
-    const now = new Date();
-    const ageMs = now - r.approxDate;
-    const ageYears = ageMs / (365.25 * 24 * 3600 * 1000);
-    const ageYearsInt = Math.floor(ageYears);
-    const ageMonthsRem = Math.floor((ageYears - ageYearsInt) * 12);
-
-    let ageStr;
+    // Age calculation.
+    var now         = new Date();
+    var ageMs       = now - r.approxDate;
+    var ageYears    = ageMs / (365.25 * 24 * 3600 * 1000);
+    var ageYearsInt = Math.floor(ageYears);
+    var ageMoRem    = Math.floor((ageYears - ageYearsInt) * 12);
+    var ageStr;
     if (ageYearsInt > 0) {
       ageStr = ageYearsInt + ' yr' + (ageYearsInt !== 1 ? 's' : '') +
-               (ageMonthsRem > 0 ? ', ' + ageMonthsRem + ' mo' : '');
+               (ageMoRem > 0 ? ', ' + ageMoRem + ' mo' : '');
     } else {
-      ageStr = ageMonthsRem + ' months';
+      ageStr = ageMoRem + ' month' + (ageMoRem !== 1 ? 's' : '');
     }
 
-    document.getElementById('metaAge').textContent = ageStr;
-    document.getElementById('metaCode').textContent = code;
+    document.getElementById('metaAge').textContent    = ageStr;
+    document.getElementById('metaCode').textContent   = code;
     document.getElementById('metaFormat').textContent = r.formatLabel;
 
-    // Replace by year
-    const replaceYear = r.approxDate.getFullYear() + 10;
-    const isOverdue = replaceYear < now.getFullYear();
-    const isDueSoon = !isOverdue && replaceYear <= now.getFullYear() + 2;
+    var replaceYear = r.approxDate.getFullYear() + 10;
     document.getElementById('metaReplace').textContent = replaceYear;
 
-    // Status
-    const statusRow = document.getElementById('statusRow');
+    // Status.
+    var statusRow  = document.getElementById('statusRow');
+    var statusText = document.getElementById('statusText');
     statusRow.className = 'status-row';
-    const statusText = document.getElementById('statusText');
 
-    if (isOverdue) {
+    var nowYear = now.getFullYear();
+    if (replaceYear < nowYear) {
       statusRow.classList.add('status-bad');
-      statusText.textContent = `Replacement overdue — detector exceeded 10-year service life in ${replaceYear}`;
-    } else if (isDueSoon) {
+      statusText.textContent =
+        'Replacement overdue \u2014 detector exceeded 10-year service life in ' + replaceYear;
+    } else if (replaceYear <= nowYear + 2) {
       statusRow.classList.add('status-warn');
-      statusText.textContent = `Approaching end of service life — replacement due by ${replaceYear}`;
+      statusText.textContent =
+        'Approaching end of service life \u2014 replacement due by ' + replaceYear;
     } else {
       statusRow.classList.add('status-ok');
-      statusText.textContent = `Within service life — replacement due ${replaceYear}`;
+      statusText.textContent =
+        'Within service life \u2014 replacement due ' + replaceYear;
     }
 
     document.getElementById('result').classList.add('visible');
   }
 
+  // ── Reference panel ───────────────────────────────────────────────────────
   function toggleRef() {
-    const body = document.getElementById('refBody');
-    const arrow = document.getElementById('refArrow');
-    body.classList.toggle('open');
-    arrow.classList.toggle('open');
+    document.getElementById('refBody').classList.toggle('open');
+    document.getElementById('refArrow').classList.toggle('open');
   }
+
+})();
 </script>
 </body>
 </html>
